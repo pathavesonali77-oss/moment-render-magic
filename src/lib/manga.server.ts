@@ -396,30 +396,68 @@ export async function writePrompts(
     }
   }
 
-  const built = wanted.map((n, i) => {
+  // Duplicate guard: two timestamps must never share one written prompt, or
+  // one line's picture ends up standing in for another moment entirely.
+  const seen = new Map<string, number>();
+  for (const n of wanted) {
+    const own = byNumber.get(n);
+    if (!own) continue;
+    const fingerprint = own.trim().toLowerCase().slice(0, 160);
+    const first = seen.get(fingerprint);
+    if (first !== undefined && first !== n) byNumber.delete(n);
+    else seen.set(fingerprint, n);
+  }
+
+  const built: string[] = [];
+  for (const n of wanted) {
     const seg = all[n - 1] as Segment;
     const own = byNumber.get(n);
     // Timestamp fidelity: a prompt that shares no content word with its OWN
     // line was written from some other part of the script. Reject it so the
-    // repair path (or the neighbour hold) replaces it instead of drawing a
-    // scene from the wrong timestamp.
+    // per-line repair below replaces it instead of drawing the wrong moment.
     if (own && isEnglishish(seg.text) && !mentionsLine(own, seg.text)) {
       byNumber.delete(n);
     } else if (own) {
-      return sanitizePrompt(own);
+      built.push(sanitizePrompt(own));
+      continue;
     }
-    if (isEnglishish(seg.text)) return sanitizePrompt(fallbackPrompt(seg));
-    // Non-English line with no written prompt: hold on the nearest neighbour's
-    // written prompt (same scene, same characters) rather than drawing garbage.
-    for (let d = 1; d < wanted.length; d++) {
-      const near = byNumber.get(wanted[i - d] ?? -1) ?? byNumber.get(wanted[i + d] ?? -1);
-      if (near) return sanitizePrompt(near);
+
+    // No usable prompt for this line yet. NEVER borrow a neighbour's prompt —
+    // that is exactly how a far-away timestamp's scene appeared on this panel.
+    // Ask the model for a prompt built from THIS ONE line only (it also
+    // handles Hindi/Hinglish, which the image engine cannot read).
+    let solo = "";
+    try {
+      solo = (
+        await textChat(
+          "You turn ONE script line into ONE English image prompt for exactly that moment. " +
+            "Translate the line if it is not English. Output only the prompt: one paragraph, " +
+            "90-130 English words, its place, its people, its action, concrete environment details, " +
+            "camera angle and natural lighting. No text, signs, speech bubbles, numbering or art-style talk.",
+          `CHARACTER BIBLE:\n${bible || "(none)"}\n\nSCRIPT LINE ${n} [${seg.start}s-${seg.end}s]:\n${seg.text}`,
+          { temperature: 0.4, maxOutputTokens: 700, attempts: 2 },
+        )
+      ).trim();
+    } catch (e) {
+      console.error(
+        `writePrompts solo repair failed for line ${n}:`,
+        e instanceof Error ? e.message : e,
+      );
+    }
+    if (solo.length > 60) {
+      built.push(sanitizePrompt(solo));
+      continue;
+    }
+    if (isEnglishish(seg.text)) {
+      built.push(sanitizePrompt(fallbackPrompt(seg)));
+      continue;
     }
     throw new Error(`No usable prompt could be written for line ${n} — retry this panel.`);
-  });
+  }
 
   return chainContinuity(built);
 }
+
 
 /**
  * Panel-to-panel continuity.
