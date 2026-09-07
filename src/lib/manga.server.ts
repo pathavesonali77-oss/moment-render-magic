@@ -1013,21 +1013,45 @@ export function promptVariant(prompt: string, level: number, line?: string): str
  * therefore ends up with a picture in any condition.
  */
 export async function renderPanel(
-  prompt: string,
+  written: string,
   seed: number,
   slot = 0,
   bible?: string,
   line?: string,
-): Promise<{ url: string; prompt: string; level: number; tries: number }> {
+  timestamp?: string,
+): Promise<{
+  url: string;
+  prompt: string;
+  level: number;
+  tries: number;
+  rewritten: boolean;
+}> {
   const errors: string[] = [];
   let tries = 0;
 
-  // Rounds 0-1: exactly the prompt that was written for this line.
+  // TIMESTAMP FIDELITY GATE — runs immediately before the first image request.
+  // The prompt is checked against THIS line's own moment (setting, subject,
+  // action, no blending). A mismatch is rewritten for this exact line and the
+  // rewrite is what gets drawn; the wrong scene never reaches the renderer.
+  let prompt = written;
+  let rewritten = false;
+  if (line) {
+    const vetted = await verifyPromptForLine(written, line, bible, timestamp);
+    prompt = vetted.prompt;
+    rewritten = vetted.rewritten;
+    if (rewritten) {
+      console.warn(
+        `timestamp fidelity: prompt for ${timestamp ? `[${timestamp}] ` : ""}line was written from a different moment — regenerated for this line`,
+      );
+    }
+  }
+
+  // Rounds 0-1: exactly the prompt that was verified for this line.
   for (let round = 0; round < 2; round++) {
     tries++;
     try {
       const url = await generateImage(prompt, seed + round * 1861, slot + round, bible, 3);
-      return { url, prompt, level: 0, tries };
+      return { url, prompt, level: 0, tries, rewritten };
     } catch (e) {
       errors.push(`round ${round + 1}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -1035,9 +1059,12 @@ export async function renderPanel(
   }
 
   // Rounds 2+: modified prompts, each level simpler and safer than the last.
+  // Every level is derived from the VERIFIED prompt, so a simplification can
+  // never reintroduce another timestamp's scene.
   for (let level = 1; level <= 5; level++) {
     const variant = promptVariant(prompt, level, line);
     if (!variant || variant.length < 20) continue;
+
     tries++;
     try {
       const url = await generateImage(variant, seed + level * 5471, slot + level, bible, 3);
