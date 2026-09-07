@@ -57,19 +57,21 @@ export const renderImage = createServerFn({ method: "POST" })
         seed: z.number().int(),
         bible: z.string().optional(),
         line: z.string().optional(),
+        timestamp: z.string().optional(),
         slot: z.number().int().min(0).default(0),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    const { url, prompt } = await renderPanel(
+    const { url, prompt, rewritten } = await renderPanel(
       data.prompt,
       data.seed,
       data.slot,
       data.bible,
       data.line,
+      data.timestamp,
     );
-    return { url, prompt };
+    return { url, prompt, rewritten };
   });
 
 
@@ -90,6 +92,7 @@ export const renderBatch = createServerFn({ method: "POST" })
               seed: z.number().int(),
               slot: z.number().int().min(0).default(0),
               line: z.string().optional(),
+              timestamp: z.string().optional(),
             }),
           )
           .min(1)
@@ -104,14 +107,15 @@ export const renderBatch = createServerFn({ method: "POST" })
           // renderPanel never gives up quietly: the written prompt is tried
           // twice across the whole key pool, then progressively rewritten
           // (shortened, softened, plain) until an image comes back.
-          const { url, prompt } = await renderPanel(
+          const { url, prompt, rewritten } = await renderPanel(
             job.prompt,
             job.seed,
             job.slot,
             data.bible,
             job.line,
+            job.timestamp,
           );
-          return { index: job.index, url, prompt };
+          return { index: job.index, url, prompt, rewritten };
 
         } catch (e) {
           return {
