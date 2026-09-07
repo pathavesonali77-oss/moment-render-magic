@@ -14,6 +14,14 @@
 - [x] Keep timestamp scene/action dominant while applying compact age and gender identity locks
 - [x] Apply one fixed anime style only in the final image-generation request, never during prompt writing
 
+- [x] Cloned minimax-m3-magic here; all 4 image keys + 5 writing keys stored as secrets
+- [x] Backup writing engine removed — writing runs ONLY on MiniMax M3 (free) via OpenRouter
+- [x] Timestamp fidelity: weak word-overlap gate replaced by a strict per-line scene
+      check run immediately before every image request; a prompt whose setting,
+      subject or action is not that line's own moment is rewritten for that exact
+      line and the rewrite is what gets drawn
+- [ ] Blocked: all 5 OpenRouter keys return 401 "User not found" — new keys needed
+
 ## Done
 - [x] Confirmed the text service allows 5 requests/min PER KEY (not 60) — 7 keys = 35/min total
 - [x] Prompt writing switched from strict JSON to lenient numbered lines + forgiving parser
