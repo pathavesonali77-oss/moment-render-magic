@@ -1068,7 +1068,7 @@ export async function renderPanel(
     tries++;
     try {
       const url = await generateImage(variant, seed + level * 5471, slot + level, bible, 3);
-      return { url, prompt: variant, level, tries };
+      return { url, prompt: variant, level, tries, rewritten };
     } catch (e) {
       errors.push(`level ${level}: ${e instanceof Error ? e.message : String(e)}`);
     }
