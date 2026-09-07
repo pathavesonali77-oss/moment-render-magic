@@ -58,37 +58,11 @@ export const ANATOMY_GUARD =
 /**
  * Every text call in the app goes through MiniMax M3 (free) on OpenRouter
  * (see openrouter.server.ts): one key at a time, with an automatic switch to
- * the next key when a daily free-model quota runs out.
+ * the next key when a daily free-model quota runs out. No other provider is
+ * used anywhere in this app.
  */
-export async function textChat(
-  system: string,
-  user: string,
-  opts: {
-    temperature?: number;
-    maxOutputTokens?: number;
-    timeoutMs?: number;
-    attempts?: number;
-  } = {},
-): Promise<string> {
-  try {
-    return await openrouterChat(user, { system, ...opts });
-  } catch (e) {
-    // Every OpenRouter key unusable (expired/revoked key, or all daily quota gone):
-    // keep writing through the backup engine instead of falling back to raw
-    // script lines, which is what produced generic pictures.
-    if (!hasFallback()) throw e;
-    console.error(
-      "MiniMax text engine unavailable, using backup engine:",
-      e instanceof Error ? e.message : e,
-    );
-    return fallbackChat(user, {
-      system,
-      ...(opts.temperature === undefined ? {} : { temperature: opts.temperature }),
-      ...(opts.maxOutputTokens === undefined ? {} : { maxOutputTokens: opts.maxOutputTokens }),
-      ...(opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs }),
-    });
-  }
-}
+export { textChat };
+
 
 function stripFences(s: string): string {
   return s
