@@ -334,32 +334,30 @@ function Index() {
           if (cancelRef.current) break;
           const missing = list.filter((s) => !s.prompt);
           if (missing.length === 0) break;
-          for (let i = 0; i < missing.length; i += 10) {
+          // One line per request: a mixed, non-contiguous group is exactly how a
+          // prompt written for another timestamp landed on this panel.
+          for (const s of missing) {
             if (cancelRef.current) break;
-            const slice = missing.slice(i, i + 10);
-            const from = (slice[0] as Shot).index + 1;
-            const to = (slice[slice.length - 1] as Shot).index + 1;
-            slice.forEach((s) => record(s.index, { status: "prompting", error: undefined }));
+            const num = s.index + 1;
+            record(s.index, { status: "prompting", error: undefined });
             try {
               const res = await getPrompts({
-                data: { bible: b, from, to, segments: allSegments },
+                data: { bible: b, from: num, to: num, segments: allSegments },
               });
-              const prompts = res.prompts as string[];
-              slice.forEach((s) => {
-                const prompt = prompts[s.index + 1 - from];
-                if (!prompt) return;
+              const prompt = (res.prompts as string[])[0];
+              if (prompt) {
                 record(s.index, { prompt, status: "waiting", error: undefined });
                 queue.push({ seg: s as Shot, prompt, attempts: 0 });
-              });
+              } else {
+                record(s.index, { status: "error", error: "no prompt" });
+              }
             } catch {
-              /* next round retries */
+              record(s.index, { status: "error", error: "no prompt" });
             }
-            list
-              .filter((s) => !s.prompt && s.index + 1 >= from && s.index + 1 <= to)
-              .forEach((s) => record(s.index, { status: "error", error: "no prompt" }));
             tick();
           }
         }
+
       })().then(() => {
         promptingDone = true;
       });
