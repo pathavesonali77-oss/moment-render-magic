@@ -407,6 +407,7 @@ function Index() {
                   seed: 1000 + g.seg.index + g.attempts * 7919,
                   slot: keyTick++,
                   line: g.seg.text,
+                  timestamp: `${g.seg.start}s-${g.seg.end}s`,
                 })),
               },
             });
@@ -432,6 +433,7 @@ function Index() {
                           bible: b,
                           slot: keyTick++,
                           line: job?.seg.text,
+                          ...(job ? { timestamp: `${job.seg.start}s-${job.seg.end}s` } : {}),
                         },
                       });
                       url = res.url;
@@ -515,7 +517,14 @@ function Index() {
         }
 
         const { url } = await draw({
-          data: { prompt, seed: 7000 + shot.index, slot: keyTick++, bible, line: shot.text },
+          data: {
+            prompt,
+            seed: 7000 + shot.index,
+            slot: keyTick++,
+            bible,
+            line: shot.text,
+            timestamp: `${shot.start}s-${shot.end}s`,
+          },
         });
         record(shot.index, { url, prompt, status: "done", error: undefined });
       } catch (e) {
@@ -575,6 +584,10 @@ function Index() {
           slot: index + 1,
           bible,
           line: shotsRef.current.find((s) => s.index === index)?.text,
+          timestamp: (() => {
+            const s0 = shotsRef.current.find((s) => s.index === index);
+            return s0 ? `${s0.start}s-${s0.end}s` : undefined;
+          })(),
         },
       });
       record(index, { url, prompt, status: "done", error: undefined });
